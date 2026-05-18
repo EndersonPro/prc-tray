@@ -1,0 +1,20 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Local config (signing keys, API keys)
+.env.local
+installers/*.dmg
+installers/*.exe
+installers/*.deb
+installers/*.rpm
+installers/*.pkg
+
+DS_Store

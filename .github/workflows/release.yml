@@ -1,0 +1,90 @@
+name: Build & Package
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            artifact: prc-tray-macos.dmg
+            build_cmd: bash installers/install-macos.sh --non-interactive
+          - os: ubuntu-latest
+            artifact: prc-tray-linux-amd64.deb
+            build_cmd: bash installers/install-linux.sh --deb
+          - os: windows-latest
+            artifact: prc-tray-windows-setup.exe
+            build_cmd: iscc installers/install-windows.iss
+            shell: powershell
+
+    runs-on: ${{ matrix.os }}
+    name: Build (${{ matrix.os }})
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Build with PyInstaller
+        run: uv run python -m PyInstaller daemon.spec --noconfirm --clean
+
+      - name: Install Inno Setup (Windows only)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          choco install innosetup -y
+          echo "C:\Program Files (x86)\Inno Setup 6" >> $env:GITHUB_PATH
+
+      - name: Package
+        shell: ${{ matrix.shell || 'bash' }}
+        env:
+          YTDLP_API_KEY: ${{ secrets.YTDLP_API_KEY || 'CHANGE_ME_TO_YOUR_API_KEY' }}
+          SIGNING_IDENTITY: ${{ secrets.SIGNING_IDENTITY || '-' }}
+        run: ${{ matrix.build_cmd }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            installers/${{ matrix.artifact }}
+            installers/output/${{ matrix.artifact }}
+          if-no-files-found: warn
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          generate_release_notes: true

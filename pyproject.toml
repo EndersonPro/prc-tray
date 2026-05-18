@@ -1,0 +1,20 @@
+[project]
+name = "prc-tray"
+version = "1.0.0"
+description = "Local daemon that wraps yt-dlp for YouTube streaming URL extraction"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.104.0",
+    "uvicorn>=0.24.0",
+    "yt-dlp>=2024.1.0",
+    "pystray>=0.19.5",
+    "pillow>=10.0.0",
+]
+
+[project.scripts]
+prc-tray = "main:main"
+
+[dependency-groups]
+dev = [
+    "pyinstaller>=6.20.0",
+]
