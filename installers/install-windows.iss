@@ -3,7 +3,9 @@
 ; Open this .iss in Inno Setup IDE and click Build > Compile
 
 #define MyAppName "PRC Tray"
-#define MyAppVersion "1.0.0"
+#ifndef MyAppVersion
+#define MyAppVersion "0.0.0-dev"
+#endif
 #define MyAppPublisher "endersonvizc"
 #define MyAppExeName "prc-tray.exe"
 
@@ -16,7 +18,7 @@ DefaultDirName={autopf}\prc-tray
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputDir=.\output
-OutputBaseFilename=prc-tray-windows-setup
+OutputBaseFilename=PRC-Tray-{#MyAppVersion}-windows-setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern

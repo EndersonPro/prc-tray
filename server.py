@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 
 import config
 from cache import cache
+from version import __version__
 
 logger = logging.getLogger("prc-tray")
 
@@ -203,7 +204,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="PRC Tray",
-    version="1.0.0",
+    version=__version__,
     lifespan=lifespan,
 )
 

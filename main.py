@@ -7,6 +7,7 @@ Usage:
     python main.py              # Run with tray icon
     python main.py --no-tray    # Run headless (for scripts/CI)
 """
+import os
 import sys
 import time
 import signal
@@ -17,14 +18,21 @@ import threading
 import uvicorn
 
 import config
+from version import __version__
 from server import app, set_shutdown_callback
 
 # ── Logging ───────────────────────────────────────────────────────────────
+
+LOG_FILE = "/tmp/prc-tray.log" if sys.platform != "win32" else os.path.join(os.environ.get("TEMP", "."), "prc-tray.log")
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
     datefmt="%H:%M:%S",
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler(LOG_FILE, mode="a"),
+    ],
 )
 logger = logging.getLogger("prc-tray")
 
@@ -80,7 +88,7 @@ def main():
     signal.signal(signal.SIGINT, lambda *_: request_shutdown())
     signal.signal(signal.SIGTERM, lambda *_: request_shutdown())
 
-    logger.info(f"Starting PRC Tray on http://{config.HOST}:{config.PORT}")
+    logger.info(f"Starting PRC Tray v{__version__} on http://{config.HOST}:{config.PORT}")
     logger.info(f"Shutdown secret: {config.SHUTDOWN_SECRET}")
     logger.info(f"Idle timeout: {config.IDLE_TIMEOUT}s")
 

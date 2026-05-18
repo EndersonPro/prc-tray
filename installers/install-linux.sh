@@ -10,6 +10,12 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 DIST_DIR="${PROJECT_DIR}/dist/prc-tray"
 
+# Resolve version: env var > pyproject.toml
+VERSION="${PRC_TRAY_VERSION:-}"
+if [[ -z "${VERSION}" ]]; then
+    VERSION=$(python3 -c "import tomllib; print(tomllib.load(open('${PROJECT_DIR}/pyproject.toml', 'rb'))['project']['version'])" 2>/dev/null || echo "0.0.0-dev")
+fi
+
 # Parse args
 AUTO_DEB=false
 for arg in "$@"; do
@@ -96,7 +102,7 @@ case "${choice}" in
     3)
         echo "Building .deb package..."
         DEB_ROOT="/tmp/${APP_NAME}-deb"
-        DEB_OUTPUT="${SCRIPT_DIR}/${APP_NAME}-linux-amd64.deb"
+        DEB_OUTPUT="${SCRIPT_DIR}/PRC-Tray-${VERSION}-linux-amd64.deb"
         rm -rf "${DEB_ROOT}"
 
         # Create package structure
@@ -113,7 +119,7 @@ case "${choice}" in
         # Control file
         cat > "${DEB_ROOT}/DEBIAN/control" << CONTROL
 Package: prc-tray
-Version: 1.0.0
+Version: ${VERSION}
 Section: utils
 Priority: optional
 Architecture: amd64

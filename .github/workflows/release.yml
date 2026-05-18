@@ -2,10 +2,7 @@ name: Build & Package
 
 on:
   push:
-    branches: [main]
     tags: ['v*']
-  pull_request:
-    branches: [main]
 
 permissions:
   contents: read
@@ -17,14 +14,14 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            artifact: prc-tray-macos.dmg
+            artifact: PRC-Tray-macos.dmg
             build_cmd: bash installers/install-macos.sh --non-interactive
           - os: ubuntu-latest
-            artifact: prc-tray-linux-amd64.deb
+            artifact: PRC-Tray-linux-amd64.deb
             build_cmd: bash installers/install-linux.sh --deb
           - os: windows-latest
-            artifact: prc-tray-windows-setup.exe
-            build_cmd: iscc installers/install-windows.iss
+            artifact: PRC-Tray-windows-setup.exe
+            build_cmd: iscc /DMyAppVersion=$env:PRC_TRAY_VERSION installers/install-windows.iss
             shell: powershell
 
     runs-on: ${{ matrix.os }}
@@ -32,6 +29,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        shell: bash
+        run: echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v4
@@ -45,7 +47,13 @@ jobs:
         run: uv sync
 
       - name: Build with PyInstaller
+        env:
+          PRC_TRAY_VERSION: ${{ steps.version.outputs.value }}
         run: uv run python -m PyInstaller daemon.spec --noconfirm --clean
+
+      - name: Install create-dmg (macOS only)
+        if: runner.os == 'macOS'
+        run: brew install create-dmg
 
       - name: Install Inno Setup (Windows only)
         if: runner.os == 'Windows'
@@ -59,15 +67,17 @@ jobs:
         env:
           YTDLP_API_KEY: ${{ secrets.YTDLP_API_KEY || 'CHANGE_ME_TO_YOUR_API_KEY' }}
           SIGNING_IDENTITY: ${{ secrets.SIGNING_IDENTITY || '-' }}
+          PRC_TRAY_VERSION: ${{ steps.version.outputs.value }}
         run: ${{ matrix.build_cmd }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact }}
+          name: PRC-Tray-${{ steps.version.outputs.value }}-${{ matrix.os }}
           path: |
-            installers/${{ matrix.artifact }}
-            installers/output/${{ matrix.artifact }}
+            installers/PRC-Tray-${{ steps.version.outputs.value }}-*.dmg
+            installers/PRC-Tray-${{ steps.version.outputs.value }}-*.deb
+            installers/output/PRC-Tray-${{ steps.version.outputs.value }}-*.exe
           if-no-files-found: warn
 
   release:
@@ -78,6 +88,10 @@ jobs:
       contents: write
 
     steps:
+      - name: Extract version from tag
+        id: version
+        run: echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:

@@ -1,4 +1,5 @@
 """System tray icon with start/stop controls."""
+import os
 import sys
 import math
 import threading
@@ -127,6 +128,8 @@ def create_tray(on_exit: callable, get_status: callable = None):
         logger.warning("pystray not available — running without tray icon")
         return None
 
+    from version import __version__
+
     icon_active = _create_icon_active()
     icon_inactive = _create_icon_inactive()
 
@@ -148,16 +151,30 @@ def create_tray(on_exit: callable, get_status: callable = None):
         except Exception:
             logger.info(f"Shutdown secret: {SHUTDOWN_SECRET}")
 
+    def on_open_logs(icon, item):
+        import subprocess
+        log_file = "/tmp/prc-tray.log" if sys.platform != "win32" else os.path.join(os.environ.get("TEMP", "."), "prc-tray.log")
+        try:
+            if sys.platform == "darwin":
+                subprocess.Popen(["open", log_file])
+            elif sys.platform == "win32":
+                subprocess.Popen(["start", log_file], shell=True)
+            else:
+                subprocess.Popen(["xdg-open", log_file])
+        except Exception:
+            logger.info(f"Logs: {log_file}")
+
     def on_quit(icon, item):
         logger.info("Tray quit requested")
         icon.stop()
         on_exit()
 
     menu = pystray.Menu(
-        MenuItem("PRC Tray", None, enabled=False),
+        MenuItem(f"PRC Tray v{__version__}", None, enabled=False),
         pystray.Menu.SEPARATOR,
         MenuItem("Health Check", on_open_browser),
         MenuItem("Copy Shutdown Secret", on_copy_secret),
+        MenuItem("Open Logs", on_open_logs),
         pystray.Menu.SEPARATOR,
         MenuItem("Quit", on_quit),
     )
@@ -165,7 +182,7 @@ def create_tray(on_exit: callable, get_status: callable = None):
     tray_icon = pystray.Icon(
         name="prc-tray",
         icon=icon_active,
-        title="PRC Tray — Running",
+        title=f"PRC Tray v{__version__} — Running",
         menu=menu,
     )
 
