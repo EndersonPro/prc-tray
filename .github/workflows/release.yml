@@ -46,6 +46,10 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
+      - name: Generate build version
+        shell: bash
+        run: echo '__version__ = "${{ steps.version.outputs.value }}"' > _build_version.py
+
       - name: Build with PyInstaller
         env:
           PRC_TRAY_VERSION: ${{ steps.version.outputs.value }}
@@ -65,7 +69,6 @@ jobs:
       - name: Package
         shell: ${{ matrix.shell || 'bash' }}
         env:
-          YTDLP_API_KEY: ${{ secrets.YTDLP_API_KEY || 'CHANGE_ME_TO_YOUR_API_KEY' }}
           SIGNING_IDENTITY: ${{ secrets.SIGNING_IDENTITY || '-' }}
           PRC_TRAY_VERSION: ${{ steps.version.outputs.value }}
         run: ${{ matrix.build_cmd }}

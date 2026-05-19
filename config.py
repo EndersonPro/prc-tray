@@ -13,25 +13,15 @@ PORT = int(os.environ.get("YTDLP_DAEMON_PORT", "17171"))
 
 # ── Security ──────────────────────────────────────────────────────────────
 
-# API key for production. Required in prod mode, ignored in dev.
-# Generate: python -c "import secrets; print(secrets.token_urlsafe(32))"
-API_KEY = os.environ.get("YTDLP_API_KEY", "")
-
 # CORS origins
 if MODE == "prod":
     ALLOWED_ORIGINS = [
         "https://music.endersonvizc.dev",
     ]
+    ALLOWED_ORIGIN_REGEX = None
 else:
-    ALLOWED_ORIGINS = [
-        "http://localhost",
-        "http://127.0.0.1",
-        "http://localhost:3000",
-        "http://localhost:5500",
-        "http://127.0.0.1:5500",
-        "http://localhost:8080",
-        "http://127.0.0.1:8080",
-    ]
+    ALLOWED_ORIGINS = []
+    ALLOWED_ORIGIN_REGEX = r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
 
 # Extra origins from env (comma-separated)
 _extra_origins = os.environ.get("YTDLP_ALLOWED_ORIGINS", "")
@@ -52,11 +42,11 @@ RATE_LIMIT_REQUESTS = int(os.environ.get("YTDLP_RATE_LIMIT", "30"))
 RATE_LIMIT_WINDOW = 60  # seconds
 
 # Cache
-CACHE_TTL = 300           # 5 minutes
+CACHE_TTL = 7200          # 2 hours
 CACHE_MAX_SIZE = 100      # max entries
 
 # Auto-shutdown
-IDLE_TIMEOUT = int(os.environ.get("YTDLP_IDLE_TIMEOUT", "600"))
+IDLE_TIMEOUT = int(os.environ.get("YTDLP_IDLE_TIMEOUT", "0"))
 
 # Shutdown secret (generated per-run, prevents unauthorized shutdown)
 SHUTDOWN_SECRET = secrets.token_urlsafe(32)

@@ -1,14 +1,22 @@
 """Centralized version resolution.
 
 Resolution chain:
-  1. importlib.metadata — works when installed via pip/uv
-  2. PRC_TRAY_VERSION env var — override for PyInstaller bundles / CI
-  3. Parse pyproject.toml directly — fallback for dev mode
+  1. _build_version — generated at build time by CI (bundled into PyInstaller)
+  2. importlib.metadata — works when installed via pip/uv
+  3. PRC_TRAY_VERSION env var — override for CI
+  4. Parse pyproject.toml directly — fallback for dev mode
 """
 import os
 
 
 def get_version() -> str:
+    try:
+        from _build_version import __version__
+
+        return __version__
+    except ImportError:
+        pass
+
     try:
         from importlib.metadata import version
 

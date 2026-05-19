@@ -18,12 +18,23 @@ fi
 # Parse args
 NON_INTERACTIVE=false
 BUILD_PKG=false
+DEV_MODE=false
 for arg in "$@"; do
     case "$arg" in
         --non-interactive) NON_INTERACTIVE=true ;;
         --pkg) BUILD_PKG=true ;;
+        --dev) DEV_MODE=true ;;
     esac
 done
+
+# Mode suffix for filenames
+if [[ "${DEV_MODE}" == "true" ]]; then
+    FILE_SUFFIX="-dev"
+    DAEMON_MODE="dev"
+else
+    FILE_SUFFIX=""
+    DAEMON_MODE="prod"
+fi
 
 # Load signing config
 ENV_FILE="${PROJECT_DIR}/.env.local"
@@ -37,8 +48,8 @@ LAUNCH_AGENT_PLIST="com.endersonvizc.prc-tray.plist"
 LAUNCH_AGENT_DIR="$HOME/Library/LaunchAgents"
 DIST_BINARY="${PROJECT_DIR}/dist/prc-tray"
 APP_BUNDLE="/tmp/PRC Tray.app"
-DMG_OUTPUT="${SCRIPT_DIR}/PRC-Tray-${VERSION}-macos.dmg"
-PKG_OUTPUT="${SCRIPT_DIR}/PRC-Tray-${VERSION}-macos.pkg"
+DMG_OUTPUT="${SCRIPT_DIR}/PRC-Tray-${VERSION}${FILE_SUFFIX}-macos.dmg"
+PKG_OUTPUT="${SCRIPT_DIR}/PRC-Tray-${VERSION}${FILE_SUFFIX}-macos.pkg"
 
 # Colors
 RED='\033[0;31m'
@@ -57,18 +68,6 @@ if [ ! -f "${DIST_BINARY}" ]; then
 fi
 
 # --- Prompt for API key (only for .pkg mode) ---
-if [[ "${BUILD_PKG}" == "true" ]]; then
-    if [[ -z "${YTDLP_API_KEY:-}" ]]; then
-        if [[ "${NON_INTERACTIVE}" == "true" ]]; then
-            echo -e "${YELLOW}Non-interactive mode: skipping API key prompt (using default)${NC}"
-        else
-            echo -e "${YELLOW}Enter your API key for prod mode (or press Enter to skip — users can set it later):${NC}"
-            read -r -s YTDLP_API_KEY
-            echo ""
-        fi
-    fi
-    API_KEY_VALUE="${YTDLP_API_KEY:-CHANGE_ME_TO_YOUR_API_KEY}"
-fi
 
 # --- Create .app bundle ---
 echo "Creating .app bundle..."
@@ -111,6 +110,11 @@ cat > "${APP_BUNDLE}/Contents/Info.plist" << PLIST
     <string>12.0</string>
     <key>LSUIElement</key>
     <true/>
+    <key>LSEnvironment</key>
+    <dict>
+        <key>YTDLP_DAEMON_MODE</key>
+        <string>${DAEMON_MODE}</string>
+    </dict>
 </dict>
 </plist>
 PLIST
@@ -153,9 +157,7 @@ if [[ "${BUILD_PKG}" == "true" ]]; then
     <key>EnvironmentVariables</key>
     <dict>
         <key>YTDLP_DAEMON_MODE</key>
-        <string>prod</string>
-        <key>YTDLP_API_KEY</key>
-        <string>${API_KEY_VALUE}</string>
+        <string>${DAEMON_MODE}</string>
     </dict>
 </dict>
 </plist>
@@ -222,40 +224,21 @@ else
     echo "Creating DMG with create-dmg..."
 
     DMG_VOLUME="PRC Tray"
-    BACKGROUND_IMG="/tmp/${APP_NAME}-dmg-bg.png"
     rm -f "${DMG_OUTPUT}"
-
-    # Generate DMG background image (logo centered on light gradient)
-    uv run python -c "
-from PIL import Image, ImageDraw
-logo = Image.open('${PROJECT_DIR}/assets/logo.png').convert('RGBA')
-w, h = 660, 400
-bg = Image.new('RGBA', (w, h), (245, 245, 245, 255))
-draw = ImageDraw.Draw(bg)
-for y in range(h):
-    r = int(245 - 8 * (y / h))
-    draw.line([(0, y), (w, y)], fill=(r, r, r + 3, 255))
-logo_resized = logo.resize((128, 128), Image.LANCZOS)
-bg.paste(logo_resized, (72, (h - 128) // 2), logo_resized)
-bg.save('${BACKGROUND_IMG}')
-"
 
     # Detach any stale mounts
     hdiutil detach "/Volumes/${DMG_VOLUME}" -quiet 2>/dev/null || true
 
     create-dmg \
         --volname "${DMG_VOLUME}" \
-        --background "${BACKGROUND_IMG}" \
         --window-pos 200 120 \
-        --window-size 660 400 \
+        --window-size 500 300 \
         --icon-size 80 \
-        --icon "PRC Tray.app" 200 208 \
+        --icon "PRC Tray.app" 140 150 \
         --hide-extension "PRC Tray.app" \
-        --app-drop-link 460 208 \
+        --app-drop-link 360 150 \
         "${DMG_OUTPUT}" \
         "${APP_BUNDLE}"
-
-    rm -f "${BACKGROUND_IMG}"
 
     echo ""
     echo -e "${GREEN}=== Build complete ===${NC}"

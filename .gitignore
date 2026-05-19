@@ -17,4 +17,4 @@ installers/*.deb
 installers/*.rpm
 installers/*.pkg
 
-DS_Store
+DS_Store_build_version.py

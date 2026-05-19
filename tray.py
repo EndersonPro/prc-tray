@@ -129,6 +129,7 @@ def create_tray(on_exit: callable, get_status: callable = None):
         return None
 
     from version import __version__
+    from config import MODE
 
     icon_active = _create_icon_active()
     icon_inactive = _create_icon_inactive()
@@ -170,7 +171,7 @@ def create_tray(on_exit: callable, get_status: callable = None):
         on_exit()
 
     menu = pystray.Menu(
-        MenuItem(f"PRC Tray v{__version__}", None, enabled=False),
+        MenuItem(f"PRC Tray v{__version__} ({MODE})", None, enabled=False),
         pystray.Menu.SEPARATOR,
         MenuItem("Health Check", on_open_browser),
         MenuItem("Copy Shutdown Secret", on_copy_secret),

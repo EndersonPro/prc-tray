@@ -48,10 +48,12 @@ def request_shutdown():
 
 
 def idle_watchdog():
-    """Background thread that checks idle timeout."""
+    """Background thread that checks idle timeout. Disabled when IDLE_TIMEOUT is 0."""
+    if config.IDLE_TIMEOUT <= 0:
+        return
     from server import get_idle_seconds
     while not _shutdown_event.is_set():
-        _shutdown_event.wait(timeout=30)  # Check every 30s
+        _shutdown_event.wait(timeout=30)
         if _shutdown_event.is_set():
             break
         idle = get_idle_seconds()
@@ -88,7 +90,7 @@ def main():
     signal.signal(signal.SIGINT, lambda *_: request_shutdown())
     signal.signal(signal.SIGTERM, lambda *_: request_shutdown())
 
-    logger.info(f"Starting PRC Tray v{__version__} on http://{config.HOST}:{config.PORT}")
+    logger.info(f"Starting PRC Tray v{__version__} ({config.MODE}) on http://{config.HOST}:{config.PORT}")
     logger.info(f"Shutdown secret: {config.SHUTDOWN_SECRET}")
     logger.info(f"Idle timeout: {config.IDLE_TIMEOUT}s")
 

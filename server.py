@@ -1,20 +1,22 @@
 """FastAPI server with security hardening."""
 import re
 import time
-import hmac
 import logging
 from urllib.parse import urlparse
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Query, HTTPException, Request, Header
+import httpx
+
+from fastapi import FastAPI, Query, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 import config
 from cache import cache
 from version import __version__
 
 logger = logging.getLogger("prc-tray")
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 # ── Rate limiter (in-memory, per-IP) ──────────────────────────────────────
 
@@ -54,23 +56,6 @@ def set_shutdown_callback(cb):
 def _touch():
     global _last_request_time
     _last_request_time = time.time()
-
-
-# ── API key validation ────────────────────────────────────────────────────
-
-def _verify_api_key(authorization: str | None) -> None:
-    """In prod mode, require Bearer token. In dev mode, skip."""
-    if config.MODE != "prod":
-        return
-    if not config.API_KEY:
-        raise HTTPException(status_code=500, detail="Server misconfigured: YTDLP_API_KEY not set")
-    if not authorization:
-        raise HTTPException(status_code=401, detail="Missing Authorization header. Use: Bearer <api_key>")
-    parts = authorization.split(" ", 1)
-    if len(parts) != 2 or parts[0] != "Bearer":
-        raise HTTPException(status_code=401, detail="Invalid Authorization format. Use: Bearer <api_key>")
-    if not hmac.compare_digest(parts[1], config.API_KEY):
-        raise HTTPException(status_code=403, detail="Invalid API key")
 
 
 # ── URL validation ────────────────────────────────────────────────────────
@@ -193,7 +178,6 @@ async def lifespan(app: FastAPI):
     logger.info(f"Daemon starting on {config.HOST}:{config.PORT}")
     if config.MODE == "prod":
         logger.info(f"CORS origins: {config.ALLOWED_ORIGINS}")
-        logger.info("API key required for /extract")
     else:
         logger.info(f"Shutdown secret: {config.SHUTDOWN_SECRET}")
     yield
@@ -211,9 +195,11 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=config.ALLOWED_ORIGINS,
+    allow_origin_regex=config.ALLOWED_ORIGIN_REGEX,
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
     allow_credentials=False,
+    allow_private_network=True,
     max_age=600,
 )
 
@@ -249,19 +235,107 @@ def health():
     }
 
 
+@app.get("/play")
+def play(
+    request: Request,
+    url: str = Query(..., description="YouTube URL or video ID", max_length=500),
+):
+    """Extract video info with ready-to-stream audio and video URLs.
+
+    Returns sorted arrays (best quality first) with proxied stream URLs.
+    Frontend can use audio[0] and video[0] directly.
+    """
+    from urllib.parse import quote
+
+    video_id = validate_video_url(url)
+    base = f"http://{config.HOST}:{config.PORT}"
+
+    cached = cache.get(f"play:{video_id}")
+    if cached:
+        logger.info(f"Cache hit (play): {video_id}")
+        return cached
+
+    logger.info(f"Extracting (play): {video_id}")
+    info = extract_info(video_id)
+
+    def _proxy_url(raw_url: str) -> str:
+        return f"{base}/stream?url={quote(raw_url, safe='')}"
+
+    def _parse_resolution(res: str) -> int:
+        if not res or "x" not in str(res):
+            return 0
+        try:
+            return int(str(res).split("x")[1])
+        except (ValueError, IndexError):
+            return 0
+
+    # Filter and sort audio-only formats (best bitrate first)
+    audio_formats = []
+    for f in info["formats"]:
+        if f.get("acodec") and f["acodec"] != "none" and (not f.get("vcodec") or f["vcodec"] == "none"):
+            audio_formats.append({
+                "url": _proxy_url(f["url"]),
+                "raw_url": f["url"],
+                "ext": f["ext"],
+                "bitrate": f.get("tbr") or 0,
+                "codec": f["acodec"],
+            })
+    audio_formats.sort(key=lambda x: x["bitrate"], reverse=True)
+
+    # Filter and sort video-only formats (best resolution first, then fps)
+    video_formats = []
+    for f in info["formats"]:
+        if f.get("vcodec") and f["vcodec"] != "none" and (not f.get("acodec") or f["acodec"] == "none"):
+            video_formats.append({
+                "url": _proxy_url(f["url"]),
+                "raw_url": f["url"],
+                "ext": f["ext"],
+                "resolution": f.get("resolution") or f"{f.get('width', '?')}x{f.get('height', '?')}",
+                "height": _parse_resolution(f.get("resolution")),
+                "fps": f.get("fps") or 0,
+                "codec": f["vcodec"],
+                "bitrate": f.get("tbr") or 0,
+            })
+    video_formats.sort(key=lambda x: (x["height"], x["fps"]), reverse=True)
+
+    # Also include combined format (audio+video) as fallback
+    combined = []
+    for f in info["formats"]:
+        if (f.get("vcodec") and f["vcodec"] != "none" and
+                f.get("acodec") and f["acodec"] != "none"):
+            combined.append({
+                "url": _proxy_url(f["url"]),
+                "raw_url": f["url"],
+                "ext": f["ext"],
+                "resolution": f.get("resolution") or f"{f.get('width', '?')}x{f.get('height', '?')}",
+                "height": _parse_resolution(f.get("resolution")),
+                "fps": f.get("fps") or 0,
+            })
+    combined.sort(key=lambda x: x["height"], reverse=True)
+
+    result = {
+        "id": info["id"],
+        "title": info["title"],
+        "thumbnail": info["thumbnail"],
+        "duration": info["duration"],
+        "audio": audio_formats,
+        "video": video_formats,
+        "combined": combined,
+    }
+
+    cache.set(f"play:{video_id}", result)
+    return result
+
+
 @app.get("/extract")
 def extract(
     request: Request,
     url: str = Query(..., description="YouTube URL or video ID", max_length=500),
-    authorization: str | None = Header(None),
 ):
     """Extract streaming URLs for a YouTube video.
 
-    In prod mode: requires Authorization: Bearer <api_key>
-    In dev mode: no auth needed (localhost only).
+    Security: localhost-only binding + CORS restricts to allowed origins.
     """
-    _verify_api_key(authorization)
-
     video_id = validate_video_url(url)
 
     cached = cache.get(video_id)
@@ -274,6 +348,53 @@ def extract(
     result = extract_info(video_id)
     cache.set(video_id, result)
     return result
+
+
+@app.get("/stream")
+def stream(
+    request: Request,
+    url: str = Query(..., description="googlevideo.com stream URL", max_length=2000),
+):
+    """Proxy a YouTube audio/video stream.
+
+    Fetches the stream server-side (no CORS restrictions) and relays it
+    to the browser with permissive CORS headers.
+    """
+    parsed = urlparse(url)
+    hostname = (parsed.hostname or "").lower()
+
+    if not hostname.endswith(".googlevideo.com"):
+        raise HTTPException(status_code=400, detail="Only googlevideo.com URLs allowed")
+
+    content_type = "application/octet-stream"
+    url_lower = url.lower()
+    if "mime=audio" in url_lower:
+        content_type = "audio/webm"
+    elif "mime=video" in url_lower:
+        content_type = "video/webm"
+
+    client = httpx.Client(
+        follow_redirects=True,
+        timeout=httpx.Timeout(connect=10, read=300, write=10, pool=10),
+    )
+    upstream = client.stream("GET", url, headers={"User-Agent": "Mozilla/5.0"})
+    upstream_resp = upstream.__enter__()
+
+    def _generate():
+        try:
+            for chunk in upstream_resp.iter_bytes(65536):
+                yield chunk
+        finally:
+            upstream.__exit__(None, None, None)
+
+    return StreamingResponse(
+        _generate(),
+        media_type=content_type,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Cache-Control": "no-cache",
+        },
+    )
 
 
 @app.post("/shutdown")
