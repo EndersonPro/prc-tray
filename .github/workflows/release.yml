@@ -22,7 +22,6 @@ jobs:
           - os: windows-latest
             artifact: PRC-Tray-windows-setup.exe
             build_cmd: iscc /DMyAppVersion=$env:PRC_TRAY_VERSION installers/install-windows.iss
-            shell: powershell
 
     runs-on: ${{ matrix.os }}
     name: Build (${{ matrix.os }})
@@ -66,8 +65,17 @@ jobs:
           choco install innosetup -y
           echo "C:\Program Files (x86)\Inno Setup 6" >> $env:GITHUB_PATH
 
-      - name: Package
-        shell: ${{ matrix.shell || 'bash' }}
+      - name: Package (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          SIGNING_IDENTITY: ${{ secrets.SIGNING_IDENTITY || '-' }}
+          PRC_TRAY_VERSION: ${{ steps.version.outputs.value }}
+        run: ${{ matrix.build_cmd }}
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
         env:
           SIGNING_IDENTITY: ${{ secrets.SIGNING_IDENTITY || '-' }}
           PRC_TRAY_VERSION: ${{ steps.version.outputs.value }}

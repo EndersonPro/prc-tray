@@ -8,7 +8,7 @@ set -euo pipefail
 APP_NAME="prc-tray"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-DIST_DIR="${PROJECT_DIR}/dist/prc-tray"
+DIST_BINARY="${PROJECT_DIR}/dist/prc-tray"
 
 # Resolve version: env var > pyproject.toml
 VERSION="${PRC_TRAY_VERSION:-}"
@@ -32,8 +32,8 @@ NC='\033[0m'
 echo -e "${GREEN}=== PRC Tray — Linux Installer ===${NC}"
 echo ""
 
-if [ ! -f "${DIST_DIR}/prc-tray" ]; then
-    echo -e "${RED}Error: Binary not found at ${DIST_DIR}/prc-tray${NC}"
+if [ ! -f "${DIST_BINARY}" ]; then
+    echo -e "${RED}Error: Binary not found at ${DIST_BINARY}${NC}"
     echo "Run first: uv run pyinstaller daemon.spec --noconfirm --clean"
     exit 1
 fi
@@ -65,7 +65,6 @@ ExecStart=${install_path}/prc-tray --no-tray
 Restart=on-failure
 RestartSec=10
 Environment=YTDLP_DAEMON_MODE=prod
-Environment=YTDLP_API_KEY=CHANGE_ME_TO_YOUR_API_KEY
 
 [Install]
 WantedBy=default.target
@@ -85,7 +84,7 @@ case "${choice}" in
     1)
         echo "Installing to /usr/local/bin (requires sudo)..."
         sudo mkdir -p /usr/local/lib/prc-tray
-        sudo cp -R "${DIST_DIR}/"* /usr/local/lib/prc-tray/
+        sudo cp "${DIST_BINARY}" /usr/local/lib/prc-tray/prc-tray
         sudo ln -sf /usr/local/lib/prc-tray/prc-tray /usr/local/bin/prc-tray
         install_systemd_service "/usr/local/lib/prc-tray"
         echo -e "${GREEN}Installed to /usr/local/bin/prc-tray${NC}"
@@ -94,7 +93,7 @@ case "${choice}" in
         echo "Installing to ~/.local/bin..."
         mkdir -p "${HOME}/.local/lib/prc-tray"
         mkdir -p "${HOME}/.local/bin"
-        cp -R "${DIST_DIR}/"* "${HOME}/.local/lib/prc-tray/"
+        cp "${DIST_BINARY}" "${HOME}/.local/lib/prc-tray/prc-tray"
         ln -sf "${HOME}/.local/lib/prc-tray/prc-tray" "${HOME}/.local/bin/prc-tray"
         install_systemd_service "${HOME}/.local/lib/prc-tray"
         echo -e "${GREEN}Installed to ~/.local/bin/prc-tray${NC}"
@@ -111,7 +110,7 @@ case "${choice}" in
         mkdir -p "${DEB_ROOT}/usr/local/bin"
 
         # Copy binary
-        cp -R "${DIST_DIR}/"* "${DEB_ROOT}/usr/local/lib/prc-tray/"
+        cp "${DIST_BINARY}" "${DEB_ROOT}/usr/local/lib/prc-tray/prc-tray"
 
         # Symlink
         ln -sf /usr/local/lib/prc-tray/prc-tray "${DEB_ROOT}/usr/local/bin/prc-tray"
@@ -149,4 +148,4 @@ POSTINST
 esac
 
 echo ""
-echo -e "${YELLOW}Don't forget to set your YTDLP_API_KEY in the service config!${NC}"
+echo -e "${GREEN}Done.${NC}"

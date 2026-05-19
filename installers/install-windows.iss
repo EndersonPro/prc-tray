@@ -34,8 +34,8 @@ Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
 Name: "autostart"; Description: "Start daemon automatically on login"; GroupDescription: "Startup:"
 
 [Files]
-; Source points to PyInstaller output — adjust path if needed
-Source: "..\dist\prc-tray\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Single-file binary from PyInstaller --onefile
+Source: "..\dist\prc-tray.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
