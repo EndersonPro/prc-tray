@@ -13,8 +13,9 @@ wheels/
 .env.local
 installers/*.dmg
 installers/*.exe
+installers/output/
 installers/*.deb
 installers/*.rpm
 installers/*.pkg
 
-DS_Store_build_version.py
+_build_version.py

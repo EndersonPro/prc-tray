@@ -63,7 +63,16 @@ jobs:
         shell: powershell
         run: |
           choco install innosetup -y
-          echo "C:\Program Files (x86)\Inno Setup 6" >> $env:GITHUB_PATH
+          $isccPaths = @(
+            "C:\Program Files (x86)\Inno Setup 6",
+            "C:\Program Files\Inno Setup 6"
+          )
+          foreach ($p in $isccPaths) {
+            if (Test-Path "$p\ISCC.exe") {
+              echo $p >> $env:GITHUB_PATH
+              break
+            }
+          }
 
       - name: Package (Unix)
         if: runner.os != 'Windows'

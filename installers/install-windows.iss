@@ -51,7 +51,7 @@ Filename: "{app}\{#MyAppExeName}"; Parameters: "--no-tray"; Description: "Start 
 
 [UninstallRun]
 ; Kill daemon on uninstall
-Filename: "taskkill"; Parameters: "/f /im {#MyAppExeName}"; Flags: runhidden
+Filename: "taskkill"; Parameters: "/f /im {#MyAppExeName}"; Flags: runhidden; RunOnceId: "KillDaemon"
 
 [Code]
 // Generate stop.bat during install
