@@ -15,10 +15,8 @@ PORT = int(os.environ.get("YTDLP_DAEMON_PORT", "17171"))
 
 # CORS origins
 if MODE == "prod":
-    ALLOWED_ORIGINS = [
-        "https://music.endersonvizc.dev",
-    ]
-    ALLOWED_ORIGIN_REGEX = None
+    ALLOWED_ORIGINS = []
+    ALLOWED_ORIGIN_REGEX = r"^https://([a-z0-9-]+\.)?endersonvizc\.dev$"
 else:
     ALLOWED_ORIGINS = []
     ALLOWED_ORIGIN_REGEX = r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
