@@ -3,9 +3,9 @@ import os
 import secrets
 
 # ── Mode ──────────────────────────────────────────────────────────────────
+# "prod" (default) = API key required, strict CORS (endersonvizc.dev only)
 # "dev" = localhost only, permissive CORS
-# "prod" = API key required, strict CORS (music.endersonvizc.dev only)
-MODE = os.environ.get("YTDLP_DAEMON_MODE", "dev")
+MODE = os.environ.get("YTDLP_DAEMON_MODE", "prod")
 
 # Server
 HOST = "127.0.0.1"  # NEVER bind to 0.0.0.0
