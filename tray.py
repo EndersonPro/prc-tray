@@ -159,7 +159,7 @@ def create_tray(on_exit: callable, get_status: callable = None):
             if sys.platform == "darwin":
                 subprocess.Popen(["open", log_file])
             elif sys.platform == "win32":
-                subprocess.Popen(["start", log_file], shell=True)
+                os.startfile(log_file)
             else:
                 subprocess.Popen(["xdg-open", log_file])
         except Exception:

@@ -14,6 +14,14 @@ import signal
 import logging
 import argparse
 import threading
+import io
+
+# Fix for PyInstaller console=False on Windows: sys.stderr/stdout are None
+# without a console. Uvicorn needs stderr for its formatter (isatty check).
+if sys.platform == "win32" and sys.stderr is None:
+    sys.stderr = io.TextIOWrapper(io.BytesIO(), encoding="utf-8")
+if sys.platform == "win32" and sys.stdout is None:
+    sys.stdout = io.TextIOWrapper(io.BytesIO(), encoding="utf-8")
 
 import uvicorn
 
@@ -65,15 +73,20 @@ def idle_watchdog():
 
 def run_server():
     """Run uvicorn in a thread so we can also run the tray."""
-    uvicorn_config = uvicorn.Config(
-        app,
-        host=config.HOST,
-        port=config.PORT,
-        log_level="warning",  # uvicorn's own logs, our logs are separate
-        access_log=False,
-    )
-    server = uvicorn.Server(uvicorn_config)
-    server.run()
+    try:
+        logger.info(f"Starting uvicorn on {config.HOST}:{config.PORT}")
+        uvicorn_config = uvicorn.Config(
+            app,
+            host=config.HOST,
+            port=config.PORT,
+            log_level="info",
+            access_log=True,
+        )
+        server = uvicorn.Server(uvicorn_config)
+        logger.info("Uvicorn server created, calling run()")
+        server.run()
+    except Exception as e:
+        logger.exception(f"Server failed to start: {e}")
 
 
 # ── Main ──────────────────────────────────────────────────────────────────
