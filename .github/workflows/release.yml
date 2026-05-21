@@ -54,27 +54,6 @@ jobs:
           PRC_TRAY_VERSION: ${{ steps.version.outputs.value }}
         run: uv run python -m PyInstaller daemon.spec --noconfirm --clean
 
-      # ── Sign Windows binary via SignPath ──
-      - name: Upload unsigned binary (Windows)
-        if: runner.os == 'Windows'
-        id: upload-unsigned
-        uses: actions/upload-artifact@v4
-        with:
-          name: unsigned-prc-tray-exe
-          path: dist/prc-tray.exe
-
-      - name: Sign binary with SignPath (Windows)
-        if: runner.os == 'Windows'
-        uses: signpath/github-action-submit-signing-request@v2
-        with:
-          api-token: '${{ secrets.SIGNPATH_API_TOKEN }}'
-          organization-id: '${{ secrets.SIGNPATH_ORG_ID }}'
-          project-slug: 'prc-tray'
-          signing-policy-slug: 'release'
-          github-artifact-id: '${{ steps.upload-unsigned.outputs.artifact-id }}'
-          wait-for-completion: true
-          output-artifact-directory: 'dist'
-
       - name: Install create-dmg (macOS only)
         if: runner.os == 'macOS'
         run: brew install create-dmg
