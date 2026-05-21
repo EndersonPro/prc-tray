@@ -155,12 +155,15 @@ Graceful shutdown. The secret is printed in logs at startup.
 
 ### macOS
 
-```bash
-# Download DMG from releases
-open PRC-Tray-1.0.0-macos.dmg
-# Drag PRC Tray to Applications
-# Double-click to run — daemon starts in background (no terminal)
-```
+1. Download the `.dmg` from [releases](https://github.com/endersonvizc/prc-tray/releases)
+2. Open the DMG and drag **PRC Tray** to Applications
+3. **Before opening**, run this in Terminal to remove the quarantine block:
+   ```bash
+   xattr -cr "/Applications/PRC Tray.app"
+   ```
+4. Double-click to run — daemon starts in background (no terminal, no Dock icon)
+
+> **Why?** macOS Gatekeeper blocks unsigned apps downloaded from the internet. The `xattr -cr` command removes the quarantine attribute. The app is not code-signed with an Apple Developer certificate.
 
 The `.app` runs as a daemon with `LSUIElement=true` — no Dock icon, no terminal window. Access the tray menu from the menu bar for health check, logs, and shutdown.
 
