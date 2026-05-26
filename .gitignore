@@ -21,7 +21,4 @@ installers/*.pkg
 _build_version.py
 installers/.DS_Store
 .atl/skill-registry.md
-.gitignore
-installers/.DS_Store
 .atl/.skill-registry.cache.json
-installers/.DS_Store

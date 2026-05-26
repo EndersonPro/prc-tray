@@ -1,0 +1,49 @@
+schema: spec-driven
+
+context: |
+  Python 3.13 daemon wrapping yt-dlp for YouTube streaming URL extraction.
+  FastAPI on 127.0.0.1:17171, system tray (pystray), in-memory LRU cache.
+  Flat module structure (no packages), uv package manager, PyInstaller builds.
+  No database, no ORM. Security via localhost binding + CORS + rate limiting.
+
+rules:
+  proposal:
+    - Include rollback plan for risky changes
+  specs:
+    - Use Given/When/Then for scenarios
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+  design:
+    - Include sequence diagrams for complex flows
+    - Document architecture decisions with rationale
+  tasks:
+    - Group by phase, use hierarchical numbering
+    - Keep tasks completable in one session
+  apply:
+    - Follow existing flat module patterns
+    - Keep server.py <500 lines; extract new concerns to new modules
+    tdd: true
+    test_command: "uv run python -m pytest tests/ -v"
+  verify:
+    test_command: "uv run python -m pytest tests/ -v"
+    build_command: "uv run python -m PyInstaller daemon.spec --noconfirm"
+    coverage_threshold: 0
+  archive:
+    - Warn before merging destructive deltas
+
+testing:
+  strict_tdd: true
+  detected: "2026-05-25"
+  runner:
+    command: "uv run python -m pytest tests/ -v"
+    framework: pytest
+  layers:
+    unit: {available: true, tool: "pytest"}
+    integration: {available: true, tool: "pytest"}
+    e2e: {available: false, tool: "—"}
+  coverage:
+    available: false
+    command: "—"
+  quality:
+    linter: {available: false, command: "—"}
+    type_checker: {available: false, command: "—"}
+    formatter: {available: false, command: "—"}
