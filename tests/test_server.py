@@ -3,6 +3,10 @@
 Tests /health, /extract validation error paths. No yt-dlp calls.
 """
 
+from urllib.parse import quote
+
+import server
+
 
 class TestHealthEndpoint:
     """Tests for GET /health — returns status, mode, idle_seconds, cache_size."""
@@ -63,3 +67,79 @@ class TestExtractValidation:
         response = client.get("/extract?url=%20")
         assert response.status_code == 400
         assert "URL is required" in response.json()["detail"]
+
+
+class _FakeUpstreamResponse:
+    def __init__(self, status_code=206, headers=None, chunks=None):
+        self.status_code = status_code
+        self.headers = headers or {}
+        self.is_success = 200 <= status_code < 300
+        self._chunks = chunks or [b"audio-bytes"]
+
+    def iter_bytes(self, chunk_size):
+        yield from self._chunks
+
+
+class _FakeStreamContext:
+    def __init__(self, response):
+        self.response = response
+        self.closed = False
+
+    def __enter__(self):
+        return self.response
+
+    def __exit__(self, exc_type, exc, tb):
+        self.closed = True
+
+
+class _FakeHttpxClient:
+    last_headers = None
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def stream(self, method, url, headers):
+        _FakeHttpxClient.last_headers = headers
+        response = _FakeUpstreamResponse(
+            status_code=206,
+            headers={
+                "content-type": "audio/webm",
+                "content-length": "11",
+                "content-range": "bytes 100-110/1000",
+                "accept-ranges": "bytes",
+            },
+        )
+        return _FakeStreamContext(response)
+
+
+class TestStreamProxy:
+    """Tests for GET /stream range proxy behavior without real network calls."""
+
+    def test_stream_forwards_range_and_returns_206_headers(self, client, monkeypatch):
+        monkeypatch.setattr(server.httpx, "Client", _FakeHttpxClient)
+        raw_url = quote("https://rr1---sn-test.googlevideo.com/videoplayback?mime=audio", safe="")
+
+        response = client.get(
+            f"/stream?url={raw_url}",
+            headers={"Range": "bytes=100-110"},
+        )
+
+        assert response.status_code == 206
+        assert response.content == b"audio-bytes"
+        assert response.headers["content-type"] == "audio/webm"
+        assert response.headers["content-length"] == "11"
+        assert response.headers["content-range"] == "bytes 100-110/1000"
+        assert response.headers["accept-ranges"] == "bytes"
+        assert response.headers["access-control-expose-headers"] == "Accept-Ranges, Content-Range, Content-Length"
+        assert _FakeHttpxClient.last_headers["Range"] == "bytes=100-110"
+        assert _FakeHttpxClient.last_headers["Accept"] == "*/*"
+        assert _FakeHttpxClient.last_headers["Referer"] == "https://music.youtube.com/"
+
+    def test_stream_defaults_to_open_range_when_browser_omits_range(self, client, monkeypatch):
+        monkeypatch.setattr(server.httpx, "Client", _FakeHttpxClient)
+        raw_url = quote("https://rr1---sn-test.googlevideo.com/videoplayback?mime=audio", safe="")
+
+        response = client.get(f"/stream?url={raw_url}")
+
+        assert response.status_code == 206
+        assert _FakeHttpxClient.last_headers["Range"] == "bytes=0-"

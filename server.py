@@ -373,12 +373,80 @@ def stream(
     elif "mime=video" in url_lower:
         content_type = "video/webm"
 
+    range_header = request.headers.get("range") or "bytes=0-"
+    upstream_headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept": "*/*",
+        "Referer": "https://music.youtube.com/",
+        "Range": range_header,
+    }
+    logger.info(
+        "Stream request: host=%s browser_range=%s upstream_range=%s url_length=%d",
+        hostname,
+        request.headers.get("range") or "<missing>",
+        upstream_headers["Range"],
+        len(url),
+    )
+
     client = httpx.Client(
         follow_redirects=True,
         timeout=httpx.Timeout(connect=10, read=300, write=10, pool=10),
     )
-    upstream = client.stream("GET", url, headers={"User-Agent": "Mozilla/5.0"})
+    upstream = client.stream("GET", url, headers=upstream_headers)
     upstream_resp = upstream.__enter__()
+    logger.info(
+        "Stream upstream response: status=%s content_type=%s content_length=%s content_range=%s accept_ranges=%s",
+        upstream_resp.status_code,
+        upstream_resp.headers.get("content-type") or "<missing>",
+        upstream_resp.headers.get("content-length") or "<missing>",
+        upstream_resp.headers.get("content-range") or "<missing>",
+        upstream_resp.headers.get("accept-ranges") or "<missing>",
+    )
+
+    if not upstream_resp.is_success:
+        upstream.__exit__(None, None, None)
+        logger.warning(
+            "Stream upstream failed: status=%s browser_range=%s upstream_range=%s",
+            upstream_resp.status_code,
+            request.headers.get("range") or "<missing>",
+            upstream_headers["Range"],
+        )
+        raise HTTPException(
+            status_code=upstream_resp.status_code,
+            detail="Upstream stream fetch failed",
+        )
+
+    upstream_content_type = upstream_resp.headers.get("content-type")
+    if upstream_content_type:
+        content_type = upstream_content_type
+
+    response_headers = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Expose-Headers": "Accept-Ranges, Content-Range, Content-Length",
+        "Accept-Ranges": "bytes",
+        "Cache-Control": "no-cache",
+    }
+
+    content_length = upstream_resp.headers.get("content-length")
+    content_range = upstream_resp.headers.get("content-range")
+    accept_ranges = upstream_resp.headers.get("accept-ranges")
+
+    if content_length:
+        response_headers["Content-Length"] = content_length
+    if content_range:
+        response_headers["Content-Range"] = content_range
+    if accept_ranges:
+        response_headers["Accept-Ranges"] = accept_ranges
+
+    response_status = 206 if upstream_resp.status_code == 206 else 200
+    logger.info(
+        "Stream daemon response: status=%s content_type=%s content_length=%s content_range=%s accept_ranges=%s",
+        response_status,
+        content_type,
+        response_headers.get("Content-Length") or "<missing>",
+        response_headers.get("Content-Range") or "<missing>",
+        response_headers.get("Accept-Ranges") or "<missing>",
+    )
 
     def _generate():
         try:
@@ -389,11 +457,9 @@ def stream(
 
     return StreamingResponse(
         _generate(),
+        status_code=response_status,
         media_type=content_type,
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Cache-Control": "no-cache",
-        },
+        headers=response_headers,
     )
 
 

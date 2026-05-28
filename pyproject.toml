@@ -1,6 +1,6 @@
 [project]
 name = "prc-tray"
-version = "1.0.2"
+version = "1.0.3"
 description = "Local daemon that wraps yt-dlp for YouTube streaming URL extraction"
 requires-python = ">=3.10"
 dependencies = [
